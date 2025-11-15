@@ -1,0 +1,253 @@
+---
+title: "P8105 HW5"
+author: "Sijda Ahmed (sa4007)"
+output: github_document
+---
+
+```{r}
+# load in necessary packages
+library(tidyverse)
+library(ggplot2)
+library(broom)
+
+# default options
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+```
+
+
+## Problem 1
+
+```{r}
+bday_sim = function(n_room) {
+  
+  birthdays = sample(1:365, n_room, replace = TRUE)
+  repeated_bday = length(unique(birthdays)) < n_room
+  repeated_bday
+  
+}
+
+bday_sim_results = 
+  expand_grid(
+    bdays = 2:50, 
+    iter = 1:10000
+  ) |> 
+  mutate(
+    result = map_lgl(bdays, bday_sim)
+  ) |> 
+  group_by(
+    bdays
+  ) |> 
+  summarize(
+    prob_repeat = mean(result) 
+  )
+
+bday_sim_results |> 
+  ggplot(aes(x = bdays, y = prob_repeat)) + 
+  geom_point() + 
+  geom_line() +
+  labs(
+    x = "Group Size",
+    y = "Probability",
+    title = "Probability at least 2 people in the group will share a bday"
+  )
+
+```
+
+As the group size increases, the probability of at least 2 people in a group will share a birthday across the 10000 simulations also increases. 
+
+
+## Problem 2
+
+```{r}
+sim_mean_pval = function(mu, n_subj= 30, sigma = 5) {
+  
+  sim_df = 
+    tibble(
+      x = rnorm(n = n_subj, mean = mu, sd = sigma)
+    )
+  
+  sim_df |> 
+    summarize(
+      mu_hat = mean(x),
+      pval = broom::tidy(t.test(x, mu = mu))$p.value
+    )
+  
+}
+
+# Creating 7 lists (a list for each true value of mu)
+mu0 = vector("list", length = 5000)
+mu1 = vector("list", length = 5000)
+mu2 = vector("list", length = 5000)
+mu3 = vector("list", length = 5000)
+mu4 = vector("list", length = 5000)
+mu5 = vector("list", length = 5000)
+mu6 = vector("list", length = 5000)
+
+# 7 lists of 5000 data frames
+for (i in 1:5000) {
+  
+  mu0[[i]] = sim_mean_pval(mu = 0);
+  mu1[[i]] = sim_mean_pval(mu = 1);
+  mu2[[i]] = sim_mean_pval(mu = 2);
+  mu3[[i]] = sim_mean_pval(mu = 3);
+  mu4[[i]] = sim_mean_pval(mu = 4);
+  mu5[[i]] = sim_mean_pval(mu = 5);
+  mu6[[i]] = sim_mean_pval(mu = 6)
+  
+}
+
+```
+
+```{r}
+results = 
+  tibble(
+    true_mean = 0:6,
+    pprop = 0:6,
+    avg_muhat = 0:6,
+    avg_muhat_reject = 0:6
+  )
+
+results$pprop[[1]] = mean(map_dbl(mu0, "pval") < 0.05)
+results$pprop[[2]] = mean(map_dbl(mu1, "pval") < 0.05)
+results$pprop[[3]] = mean(map_dbl(mu2, "pval") < 0.05)
+results$pprop[[4]] = mean(map_dbl(mu3, "pval") < 0.05)
+results$pprop[[5]] = mean(map_dbl(mu4, "pval") < 0.05)
+results$pprop[[6]] = mean(map_dbl(mu5, "pval") < 0.05)
+results$pprop[[7]] = mean(map_dbl(mu6, "pval") < 0.05)
+
+results |>
+  ggplot(aes(x = results$true_mean, y = results$pprop)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "True Value of mu",
+    y = "Proportion of Times the Null was Rejected",
+    title = "Effect Size and Power"
+  )
+
+```
+
+When the true value of mu is 2 or more, the proportion of times the null was rejected (the power of the test) is smaller when the true value of mu is greater. 
+
+```{r}
+results$avg_muhat[[1]] = mean(map_dbl(mu0, "mu_hat"))
+results$avg_muhat[[2]] = mean(map_dbl(mu1, "mu_hat"))
+results$avg_muhat[[3]] = mean(map_dbl(mu2, "mu_hat"))
+results$avg_muhat[[4]] = mean(map_dbl(mu3, "mu_hat"))
+results$avg_muhat[[5]] = mean(map_dbl(mu4, "mu_hat"))
+results$avg_muhat[[6]] = mean(map_dbl(mu5, "mu_hat"))
+results$avg_muhat[[7]] = mean(map_dbl(mu6, "mu_hat"))
+
+results |>
+  ggplot(aes(x = results$true_mean, y = results$avg_muhat)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "True Value of mu",
+    y = "Average Estimate of mu hat",
+    title = "Average Estimate of mu hat Across True Values of mu"
+  )
+
+```
+
+As the true value of mu increases, the average estimate of mu hat also increases. The average estimate of mu hat is very close to the true value of mu.
+
+```{r}
+
+```
+
+
+## Problem 3
+
+```{r}
+homicide_data = read_csv("data/homicide-data.csv") |>
+  mutate(
+    city_state = paste(city, state, sep = ", ")
+  ) 
+
+city_totals =
+  homicide_data |>
+  group_by(city_state) |>
+  summarize(
+    total_homicides = n(),
+    unsolved_homicides = sum(disposition %in% c("Closed without arrest", "Open/No arrest"))
+  )
+
+city_totals |>
+  knitr::kable()
+
+```
+
+The raw data includes the homicide victims names, race, age, sex, city, state, and disposition of the homicide case. The total number of homicides and the number of unsolved homicides are shown above. 
+
+```{r}
+Baltimore_totals = 
+  homicide_data |>
+  filter(city_state == "Baltimore, MD") |>
+  summarize(
+    total = n(),
+    unsolved = sum(disposition %in% c("Closed without arrest", "Open/No arrest"))
+  )
+
+Baltimore_test = prop.test(Baltimore_totals$unsolved, Baltimore_totals$total)
+Baltimore_testtidy = broom::tidy(Baltimore_test)
+Baltimore_estimate = Baltimore_testtidy$estimate
+Baltimore_lowerCI = Baltimore_testtidy$conf.low
+Baltimore_upperCI = Baltimore_testtidy$conf.high
+
+```
+
+For the city of Baltimore, MD, the estimated proportion of homicides that are unsolved is `r Baltimore_estimate` and the confidence interval is [`r Baltimore_lowerCI`, `r Baltimore_upperCI`].
+
+```{r}
+city_test =
+  city_totals |>
+  mutate(
+    test = map2(unsolved_homicides, total_homicides, ~ prop.test(.x, .y)),
+    testtidy  = map(test, broom::tidy)
+  ) |>
+  unnest(testtidy) |>
+  mutate(
+    conf_int = paste(conf.low, conf.high, sep = ", ")
+  ) |>
+  select(city_state, estimate, conf.low, conf.high, conf_int)
+
+city_test |>
+  knitr::kable()
+  
+```
+
+The estimated proportions of proportion of unsolved homicides and CIs for each city are shown in the table above.
+
+```{r}
+city_test |>
+  mutate(city_state = fct_reorder(city_state, estimate)) |>
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  labs(
+    x = "City, State",
+    y = "Estimated Proportion of Unsolved Homicides",
+    title = "Estimated Proportion of Unsolved Homicides by City (with CI's)"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+```
+
+
+
